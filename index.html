@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strona główna</title>
+<meta name="description" content="Moje małe projekty i narzędzia.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E🏠%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#f4f6f7;--card:#fff;--fg:#13202b;--mut:#5a6874;--line:#d3dbe0;--acc:#0b6e8a;--bad:#b3261e;color-scheme:light dark}
+@media(prefers-color-scheme:dark){:root{--bg:#0e161c;--card:#16212a;--fg:#e6edf2;--mut:#91a0ac;--line:#25333e;--acc:#5cc2de;--bad:#f2a29c}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:clamp(28px,8vh,80px) 20px 32px}
+h1{font-size:clamp(28px,6vw,40px);line-height:1.1;margin:0 0 8px;letter-spacing:-.02em}
+.lead{color:var(--mut);margin:0 0 32px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.tile{position:relative}
+.tile a{display:flex;flex-direction:column;gap:6px;height:100%;min-height:128px;padding:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;color:inherit;text-decoration:none}
+.tile a:hover,.tile a:focus-visible{border-color:var(--acc)}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.e{font-size:30px;line-height:1}
+.t{font-weight:650;font-size:18px;margin-top:auto}
+.d{color:var(--mut);font-size:14px}
+.tools{position:absolute;top:8px;right:8px;display:flex;gap:4px}
+.tools button{width:30px;height:30px;padding:0}
+button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+button:disabled{opacity:.6;cursor:default}
+.pri{background:var(--acc);border-color:transparent;color:var(--bg);font-weight:600}
+#adm{margin-top:32px;padding:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;display:grid;gap:10px}
+#adm p{margin:0;color:var(--mut);font-size:14px}
+#form{display:grid;gap:8px}
+input{font:inherit;font-size:16px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+.f{display:grid;grid-template-columns:72px 1fr;gap:8px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+#st.err{color:var(--bad)}
+footer{max-width:980px;margin:0 auto;padding:0 20px 40px}
+.link{background:none;border:0;color:var(--mut);padding:4px 0;font-size:13px;text-decoration:underline}
+</style>
+</head>
+<body>
+<main>
+  <h1>Strona główna</h1>
+  <p class="lead">Moje małe projekty i narzędzia.</p>
+  <div id="grid"></div>
+  <p id="empty" class="lead" hidden>Na razie brak stron. Zaloguj się jako admin i dodaj pierwszą.</p>
+  <noscript><p><a href="mapowka-azja.html">Mapówka: Azja</a></p></noscript>
+
+  <section id="adm" hidden>
+    <div id="login">
+      <p>Zaloguj się tokenem GitHub z uprawnieniem Contents: Read and write, ograniczonym do tego jednego repozytorium. Token zapisuje się tylko w tej przeglądarce.</p>
+      <div class="btns" style="margin-top:10px"><input id="tk" type="password" placeholder="Token GitHub" autocomplete="off" style="flex:1;min-width:200px;width:auto"><button id="lg" class="pri">Zaloguj</button></div>
+    </div>
+    <div id="form" hidden>
+      <div class="f"><input id="fe" placeholder="Emoji" maxlength="4"><input id="ft" placeholder="Tytuł"></div>
+      <input id="fd" placeholder="Krótki opis">
+      <input id="fu" placeholder="Adres lub nazwa pliku, np. nowa-strona.html">
+      <p>Albo wybierz plik HTML, który zostanie wgrany do repozytorium:</p>
+      <input id="ff" type="file" accept=".html,.htm">
+      <div class="btns"><button id="add">Dodaj kafelek</button><button id="save" class="pri">Zapisz na GitHubie</button><button id="out">Wyloguj</button></div>
+    </div>
+    <p id="st" aria-live="polite"></p>
+  </section>
+</main>
+<footer><button id="adm-t" class="link">Admin</button></footer>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+// Lista startowa, używana gdy w repozytorium nie ma jeszcze pliku strony.json
+const DEF=[{e:'🗺️',t:'Mapówka: Azja',d:'Quiz z państw i stolic Azji na mapie z numerami.',u:'mapowka-azja.html'}];
+const h=location.hostname,gh=h.endsWith('.github.io'),O=gh?h.split('.')[0]:'franekb123';
+const seg=location.pathname.split('/')[1]||'';
+const R=(gh&&seg&&!/\.html?$/.test(seg))?seg:O+'.github.io';
+const API='https://api.github.com/repos/'+O+'/'+R+'/contents/';
+let list=DEF.slice(),pend={},edit=-1,open=false;
+
+const tok=()=>{try{return localStorage.getItem('ght')||''}catch(e){return ''}};
+const setTok=v=>{try{v?localStorage.setItem('ght',v):localStorage.removeItem('ght')}catch(e){}};
+const hd=()=>({Authorization:'Bearer '+tok(),Accept:'application/vnd.github+json'});
+const msg=(t,err)=>{$('st').textContent=t;$('st').className=err?'err':''};
+const b64=buf=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)};
+
+function ui(){$('login').hidden=!!tok();$('form').hidden=!tok()}
+
+function render(){
+  const g=$('grid'),adm=open&&tok();
+  g.textContent='';
+  list.forEach((s,i)=>{
+    const w=document.createElement('div');w.className='tile';
+    const a=document.createElement('a');a.href=s.u;
+    ['e','t','d'].forEach(c=>{const x=document.createElement('span');x.className=c;x.textContent=c==='e'?(s.e||'🔗'):(s[c]||'');a.appendChild(x)});
+    w.appendChild(a);
+    if(adm){
+      const t=document.createElement('div');t.className='tools';
+      [['✎','Edytuj',()=>fill(i)],['✕','Usuń',()=>{list.splice(i,1);clearForm();render();msg('Usunięto. Kliknij „Zapisz na GitHubie”, aby zmiana trafiła na stronę.')}]].forEach(x=>{
+        const b=document.createElement('button');b.textContent=x[0];b.title=x[1];b.setAttribute('aria-label',x[1]);b.onclick=x[2];t.appendChild(b);
+      });
+      w.appendChild(t);
+    }
+    g.appendChild(w);
+  });
+  $('empty').hidden=list.length>0;
+}
+
+function clearForm(){
+  ['fe','ft','fd','fu','ff'].forEach(i=>$(i).value='');
+  edit=-1;$('add').textContent='Dodaj kafelek';
+}
+function fill(i){
+  const s=list[i];edit=i;
+  $('fe').value=s.e||'';$('ft').value=s.t||'';$('fd').value=s.d||'';$('fu').value=s.u||'';
+  $('add').textContent='Zapisz kafelek';
+  $('adm').scrollIntoView({behavior:'smooth'});
+}
+
+async function put(path,content,message){
+  const url=API+encodeURIComponent(path);let sha;
+  const r=await fetch(url,{headers:hd(),cache:'no-store'});
+  if(r.ok)sha=(await r.json()).sha;else if(r.status!==404)throw new Error('odczyt '+path+' ('+r.status+')');
+  const p=await fetch(url,{method:'PUT',headers:hd(),body:JSON.stringify({message:message,content:content,sha:sha})});
+  if(!p.ok)throw new Error('zapis '+path+' ('+p.status+')');
+}
+
+$('adm-t').onclick=()=>{open=!open;$('adm').hidden=!open;ui();render()};
+
+$('lg').onclick=async()=>{
+  const v=$('tk').value.trim();if(!v)return;
+  const r=await fetch('https://api.github.com/repos/'+O+'/'+R,{headers:{Authorization:'Bearer '+v,Accept:'application/vnd.github+json'}}).catch(()=>null);
+  if(r&&r.ok){setTok(v);$('tk').value='';msg('Zalogowano do '+O+'/'+R+'.');ui();render()}
+  else msg('Logowanie nie powiodło się'+(r?' (kod '+r.status+')':'')+'. Sprawdź token i czy ma dostęp do '+O+'/'+R+'.',1);
+};
+$('out').onclick=()=>{setTok('');msg('');ui();render()};
+
+$('add').onclick=async()=>{
+  const t=$('ft').value.trim(),f=$('ff').files[0];let u=$('fu').value.trim();
+  if(!t||(!u&&!f))return msg('Podaj tytuł oraz adres albo wybierz plik HTML.',1);
+  if(f){u=f.name;pend[u]=b64(await f.arrayBuffer())}
+  const s={e:$('fe').value.trim(),t:t,d:$('fd').value.trim(),u:u};
+  if(edit>=0)list[edit]=s;else list.push(s);
+  clearForm();render();
+  msg('Kafelek dodany. Kliknij „Zapisz na GitHubie”, aby zobaczyli go wszyscy.');
+};
+
+$('save').onclick=async()=>{
+  $('save').disabled=true;msg('Zapisuję…');
+  try{
+    for(const n of Object.keys(pend))await put(n,pend[n],'Dodaj stronę '+n);
+    pend={};
+    await put('strony.json',btoa(unescape(encodeURIComponent(JSON.stringify(list,null,2)))),'Aktualizuj listę stron');
+    msg('Zapisano. Zmiana będzie widoczna dla wszystkich po 1–10 minutach.');
+  }catch(e){msg('Nie udało się zapisać: '+e.message+'. Sprawdź token i uprawnienia (Contents: Read and write).',1)}
+  $('save').disabled=false;
+};
+
+fetch('strony.json',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(j=>{if(Array.isArray(j))list=j}).catch(()=>{}).then(render);
+ui();
+})();
+</script>
+</body>
+</html>
