@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mapówka: Azja</title>
+<style>
+:root{--bg:#eef3f6;--fg:#16212b;--mut:#566573;--card:#fff;--bd:#cdd8e0;--sea:#d6e6ef;--ctx:#c3cfd8;--land:#f8faf7;--st:#3b4b59;--cur:#ffcf3f;--ok:#7fd1a1;--bad:#f1948a;--halo:#fff;--acc:#2563c9;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d151c;--fg:#e8eef3;--mut:#93a3b1;--card:#16212b;--bd:#2a3946;--sea:#0f1c26;--ctx:#1e2d39;--land:#2d4659;--st:#a5b8c8;--cur:#d9a400;--ok:#2e8b57;--bad:#a94442;--halo:#0d151c}}
+:root[data-theme="dark"]{--bg:#0d151c;--fg:#e8eef3;--mut:#93a3b1;--card:#16212b;--bd:#2a3946;--sea:#0f1c26;--ctx:#1e2d39;--land:#2d4659;--st:#a5b8c8;--cur:#d9a400;--ok:#2e8b57;--bad:#a94442;--halo:#0d151c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{display:grid;height:100%;grid-template-rows:minmax(0,1fr) auto}
+@media(min-width:820px){#app{grid-template-rows:none;grid-template-columns:minmax(0,1fr) 340px}}
+#mapw{position:relative;min-height:0;overflow:hidden;background:var(--sea)}
+svg{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.x{fill:var(--ctx);stroke:var(--bg);stroke-width:.5;vector-effect:non-scaling-stroke;pointer-events:none}
+.c,.m{fill:var(--land);stroke:var(--st);stroke-width:.8;vector-effect:non-scaling-stroke;cursor:pointer}
+.c.cur,.m.cur{fill:var(--cur)}
+.c.ok,.m.ok{fill:var(--ok)}
+.c.bad,.m.bad{fill:var(--bad)}
+.num{font-weight:700;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:var(--fg);paint-order:stroke;stroke:var(--halo);stroke-linejoin:round;font-variant-numeric:tabular-nums}
+.zb{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.zb button{width:38px;height:38px;padding:0;font-size:20px;line-height:1}
+#err{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center}
+#panel{background:var(--card);border-top:1px solid var(--bd);padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;overflow:auto;max-height:52vh}
+@media(min-width:820px){#panel{max-height:none;border-top:0;border-left:1px solid var(--bd);padding:20px}}
+.row{display:flex;justify-content:space-between;align-items:baseline;color:var(--mut);font-size:13px}
+.row b{color:var(--fg);font-size:15px}
+#q{display:flex;align-items:baseline;gap:10px}
+#q span{color:var(--mut)}
+#n{font-size:44px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+label{display:grid;gap:4px;color:var(--mut);font-size:13px}
+input{font:inherit;font-size:16px;color:var(--fg);background:var(--bg);border:2px solid var(--bd);border-radius:10px;padding:10px 12px;width:100%}
+input:focus-visible,button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+input.good{border-color:var(--ok)}
+input.wrong{border-color:var(--bad)}
+.btns{display:flex;gap:8px}
+button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 14px;cursor:pointer}
+#go{flex:1;background:var(--acc);border-color:transparent;color:#fff;font-weight:600}
+#fb{min-height:2.9em}
+#hint{border-top:1px solid var(--bd);padding-top:10px;color:var(--mut);font-size:14px}
+#hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="mapw">
+    <svg id="sv"><g id="g"></g></svg>
+    <div class="zb"><button id="zi" aria-label="Przybliż">+</button><button id="zo" aria-label="Oddal">−</button></div>
+    <div id="err" hidden></div>
+  </div>
+  <aside id="panel">
+    <div class="row"><b id="prog"></b><span id="left"></span></div>
+    <div id="q"><span>Państwo nr</span><div id="n"></div></div>
+    <label>Nazwa państwa<input id="a" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+    <label id="lb" hidden>Stolica (dodatkowo)<input id="b" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+    <div class="btns"><button id="go">Sprawdź</button><button id="skip">Pomiń</button></div>
+    <div id="fb" aria-live="polite"></div>
+    <div id="hint"></div>
+  </aside>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.3/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/1.6.9/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/datamaps/0.5.9/datamaps.all.min.js"></script>
+<script>
+(function(){
+// ISO3|nazwa|inne nazwy|stolica|inne stolice|lon,lat (dla małych państw)
+const R=[
+"AFG|Afganistan||Kabul|",
+"SAU|Arabia Saudyjska||Rijad|Riyadh;Rijadh",
+"ARM|Armenia||Erywań|Erewan;Yerevan",
+"AZE|Azerbejdżan||Baku|",
+"BHR|Bahrajn||Manama||50.55,26.07",
+"BGD|Bangladesz||Dhaka|Dakka",
+"BTN|Bhutan||Thimphu|Thimpu",
+"BRN|Brunei||Bandar Seri Begawan||114.9,4.5",
+"CHN|Chiny||Pekin|Beijing",
+"PHL|Filipiny||Manila|",
+"GEO|Gruzja||Tbilisi|Tyflis",
+"IND|Indie||Nowe Delhi|New Delhi;Delhi",
+"IDN|Indonezja||Dżakarta|Jakarta",
+"IRQ|Irak||Bagdad|Baghdad",
+"IRN|Iran||Teheran|Tehran",
+"ISR|Izrael||Jerozolima|Jerusalem",
+"JPN|Japonia||Tokio|Tokyo",
+"YEM|Jemen||Sana|Sanaa",
+"JOR|Jordania||Amman|",
+"KHM|Kambodża||Phnom Penh|Pnom Penh",
+"QAT|Katar||Doha|",
+"KAZ|Kazachstan||Astana|",
+"KGZ|Kirgistan||Biszkek|Bishkek",
+"KOR|Korea Południowa|Korea Płd|Seul|Seoul",
+"PRK|Korea Północna|Korea Płn|Pjongjang|Pyongyang",
+"KWT|Kuwejt||Kuwejt|Kuwait;Kuwait City",
+"LAO|Laos||Wientian|Vientiane",
+"LBN|Liban||Bejrut|Beirut",
+"MDV|Malediwy||Male||73.5,4.2",
+"MYS|Malezja||Kuala Lumpur|",
+"MMR|Mjanma|Birma;Myanmar|Naypyidaw|Naypyitaw;Nay Pyi Taw",
+"MNG|Mongolia||Ułan Bator|Ulaanbaatar;Ulan Bator",
+"NPL|Nepal||Katmandu|Kathmandu",
+"OMN|Oman||Maskat|Muscat",
+"PAK|Pakistan||Islamabad|",
+"SGP|Singapur|Singapore|Singapur|Singapore|103.82,1.35",
+"LKA|Sri Lanka||Kotte|Sri Dzajawardanapura Kotte;Sri Jayawardenepura Kotte",
+"SYR|Syria||Damaszek|Damascus",
+"TJK|Tadżykistan||Duszanbe|Dushanbe",
+"THA|Tajlandia||Bangkok|",
+"TWN|Tajwan|Taiwan|Tajpej|Taipei",
+"TLS|Timor Wschodni||Dili|",
+"TUR|Turcja||Ankara|",
+"TKM|Turkmenistan||Aszchabad|Aszgabat;Ashgabat",
+"UZB|Uzbekistan||Taszkent|Tashkent",
+"VNM|Wietnam||Hanoi|",
+"ARE|Zjednoczone Emiraty Arabskie|ZEA;Emiraty Arabskie|Abu Zabi|Abu Dhabi;Abu Dabi"
+];
+const nz=s=>s.toLowerCase().replace(/ł/g,'l').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+const C=R.map((r,i)=>{const p=r.split('|');return{id:p[0],n:i+1,name:p[1],cap:p[3],
+  an:[p[1]].concat(p[2]?p[2].split(';'):[]).map(nz),
+  ac:[p[3]].concat(p[4]?p[4].split(';'):[]).map(nz),
+  pt:p[5]?p[5].split(',').map(Number):null}});
+const M={};C.forEach(c=>M[c.id]=c);
+const $=id=>document.getElementById(id);
+const mw=$('mapw'),svg=d3.select('#sv'),g=d3.select('#g');
+let F=[],k=1,els={},st={},cp={},fa='',q=[],cur=null,phase='ask',nums=null,mk=null;
+
+try{
+  const T=Datamap.prototype.worldTopo,o=T.objects.world||T.objects[Object.keys(T.objects)[0]];
+  F=topojson.feature(T,o).features;
+}catch(e){}
+if(!F.some(f=>M[f.id])){$('err').hidden=false;$('err').textContent='Nie udało się wczytać danych mapy. Odśwież stronę.';}
+
+const zoom=d3.behavior.zoom().scaleExtent([1,14]).on('zoom',()=>{
+  k=d3.event.scale;
+  g.attr('transform','translate('+d3.event.translate+')scale('+k+')');
+  upd();
+});
+svg.call(zoom);
+
+function upd(){
+  if(!nums)return;
+  nums.attr('font-size',11/k).attr('stroke-width',3/k).attr('y',d=>d.y-(d.o?8/k:0));
+  mk.attr('r',4/k);
+}
+
+function paint(){
+  C.forEach(c=>(els[c.id]||[]).forEach(e=>{
+    e.classList.toggle('cur',cur===c);
+    e.classList.toggle('ok',st[c.id]==='ok');
+    e.classList.toggle('bad',st[c.id]==='bad');
+  }));
+}
+
+function hint(c){
+  $('hint').innerHTML='Nr '+c.n+': <b>'+c.name+'</b> — stolica: <b>'+c.cap+'</b>';
+}
+
+function draw(){
+  const W=mw.clientWidth,H=mw.clientHeight;
+  if(!W||!H||!F.length)return;
+  g.selectAll('*').remove();
+  zoom.scale(1).translate([0,0]);g.attr('transform',null);k=1;
+  const pr=d3.geo.mercator().scale(1).translate([0,0]),path=d3.geo.path().projection(pr);
+  const qf=F.filter(f=>M[f.id]);
+  const b=path.bounds({type:'FeatureCollection',features:qf});
+  const s=.96/Math.max((b[1][0]-b[0][0])/W,(b[1][1]-b[0][1])/H);
+  pr.scale(s).translate([(W-s*(b[1][0]+b[0][0]))/2,(H-s*(b[1][1]+b[0][1]))/2]);
+  els={};
+  g.selectAll('.x').data(F.filter(f=>!M[f.id]&&f.id!=='ATA')).enter().append('path').attr('class','x').attr('d',path);
+  g.selectAll('.c').data(qf).enter().append('path').attr('class','c').attr('d',path)
+    .each(function(f){(els[f.id]=els[f.id]||[]).push(this)})
+    .on('click',f=>hint(M[f.id]));
+  const ctr=f=>{
+    let o=f.geometry;
+    if(o.type==='MultiPolygon'){
+      let m=-1,bp;
+      o.coordinates.forEach(c=>{const p={type:'Polygon',coordinates:c},a=d3.geo.area(p);if(a>m){m=a;bp=p}});
+      o=bp;
+    }
+    return path.centroid(o);
+  };
+  const L=[];
+  C.forEach(c=>{
+    const f=qf.find(f=>f.id===c.id);let p,o=0;
+    if(c.pt){p=pr(c.pt);o=1}else if(f)p=ctr(f);
+    if(p&&!isNaN(p[0])&&!isNaN(p[1]))L.push({c:c,x:p[0],y:p[1],o:o});
+  });
+  mk=g.selectAll('.m').data(L.filter(d=>d.o)).enter().append('circle').attr('class','m')
+    .attr('cx',d=>d.x).attr('cy',d=>d.y)
+    .each(function(d){(els[d.c.id]=els[d.c.id]||[]).push(this)})
+    .on('click',d=>hint(d.c));
+  nums=g.selectAll('.num').data(L).enter().append('text').attr('class','num').attr('x',d=>d.x).text(d=>d.c.n);
+  upd();paint();
+}
+
+const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+
+function stat(){
+  $('prog').textContent=C.filter(c=>st[c.id]==='ok').length+' / '+C.length+' zaliczone · stolice: '+Object.keys(cp).length;
+  $('left').textContent=q.length?'Do zaliczenia: '+q.length:'';
+}
+
+function start(){
+  st={};cp={};q=shuf(C);
+  $('hint').textContent='Kliknij państwo na mapie, aby zobaczyć jego nazwę i stolicę.';
+  show();
+}
+
+function show(){
+  phase='ask';
+  $('fb').textContent='';
+  ['a','b'].forEach(i=>{$(i).value='';$(i).className='';$(i).disabled=false});
+  $('lb').hidden=true;$('skip').hidden=false;$('skip').textContent='Pomiń';fa='';
+  stat();
+  if(!q.length){
+    cur=null;phase='end';
+    $('n').textContent='★';
+    $('fb').textContent='Gotowe! Wszystkie państwa zaliczone.';
+    $('go').textContent='Zacznij od nowa';$('skip').hidden=true;
+    ['a','b'].forEach(i=>$(i).disabled=true);
+    paint();return;
+  }
+  cur=q[0];
+  $('n').textContent=cur.n;
+  $('go').textContent='Sprawdź';
+  paint();
+  $('a').focus({preventScroll:true});
+}
+
+$('go').onclick=()=>{
+  if(phase==='end')return start();
+  if(phase==='done'){if(st[cur.id]!=='ok')q.push(q.shift());return show()}
+  if(phase==='cap'){const B=cur.ac.includes(nz($('b').value));$('b').classList.add(B?'good':'wrong');if(B)cp[cur.id]=1;fa+='<br>'+(B?'✔':'✖')+' Stolica: <b>'+cur.cap+'</b>';$('fb').innerHTML=fa;$('skip').hidden=true;$('b').disabled=true;$('go').textContent='Dalej';phase='done';stat();$('go').focus({preventScroll:true});return}
+  const A=cur.an.includes(nz($('a').value));
+  $('a').className=A?'good':'wrong';
+  
+  fa=(A?'✔':'✖')+' Państwo: <b>'+cur.name+'</b>';$('fb').innerHTML=fa;
+  if(A){st[cur.id]='ok';q.shift()}else st[cur.id]='bad';
+  phase='cap';$('lb').hidden=false;$('a').disabled=true;$('skip').textContent='Pomiń stolicę';$('b').focus({preventScroll:true});
+  $('go').textContent='Sprawdź stolicę';
+  stat();paint();
+};
+$('skip').onclick=()=>{if(phase==='cap'){if(st[cur.id]!=='ok')q.push(q.shift());show()}else if(phase==='ask'&&q.length>1){q.push(q.shift());show()}};
+$('a').onkeydown=e=>{if(e.key==='Enter')$('go').click()};
+$('b').onkeydown=e=>{if(e.key==='Enter')$('go').click()};
+
+const zb=f=>{
+  const t=zoom.translate(),s=zoom.scale(),n=Math.max(1,Math.min(14,s*f)),cx=mw.clientWidth/2,cy=mw.clientHeight/2;
+  zoom.scale(n).translate([cx-(cx-t[0])/s*n,cy-(cy-t[1])/s*n]);
+  svg.transition().duration(200).call(zoom.event);
+};
+$('zi').onclick=()=>zb(1.6);
+$('zo').onclick=()=>zb(1/1.6);
+
+let rt;
+addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(draw,150)});
+start();
+draw();
+})();
+</script>
+</body>
+</html>
